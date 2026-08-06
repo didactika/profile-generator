@@ -50,6 +50,11 @@ const THEME = {
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
 
+// Half the gutter between two grid tiles, in chart units. Applied only to a
+// tile's inner edge, so none of it is wasted as an outer margin and the outer
+// edges stay flush with the full-width charts above and below.
+const GUTTER = 44;
+
 const T = {
   en: { repos: "Repositories", contributors: "Contributors", stars: "Stars",
         commits: "Commits · 12 mo", releases: "Releases", other: "Other",
@@ -237,7 +242,7 @@ ${text(cx, 72, label.toUpperCase(), { size: 10, weight: 600, fill: th.muted, anc
  * than the segment gap — literally invisible. Separate rows give every class a
  * readable bar and a direct label.
  */
-function barRows(items, locale, mode, { unit = "%", title = "", width = 520, labelPct = 0.26, rows = 0 } = {}) {
+function barRows(items, locale, mode, { unit = "%", title = "", width = 520, labelPct = 0.26, rows = 0, padLeft = 0, padRight = 0 } = {}) {
   const th = THEME[mode], t = T[locale];
   // Proportions scale with the canvas so the same function serves both the
   // half-width grid tiles and any full-width use.
@@ -258,8 +263,8 @@ function barRows(items, locale, mode, { unit = "%", title = "", width = 520, lab
     : "";
 
   if (!items.length) {
-    return svg(W, top + 40, `${head}
-${text(W / 2, top + 20, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}`, th);
+    return svg(W + padLeft + padRight, top + 40, `<g transform="translate(${padLeft},0)">${head}
+${text(W / 2, top + 20, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}</g>`, th);
   }
 
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
@@ -279,7 +284,12 @@ ${text(W / 2, top + 20, t.noData, { size: 12, fill: th.muted, anchor: "middle" }
 ${text(W, mid + 4, value(item), { size: 11, fill: th.secondary, anchor: "end" })}`;
   }).join("\n");
 
-  return svg(W, top + slots * rowH + 6, `${head}\n${body}`, th);
+  // Horizontal breathing room is baked into the canvas rather than added
+  // between the images in markdown: the only separator that survives GitHub's
+  // sanitiser is a run of &nbsp;, whose width depends on the reader's font.
+  // Padding here is measured in the chart's own units and scales with it.
+  return svg(W + padLeft + padRight, top + slots * rowH + 6,
+    `<g transform="translate(${padLeft},0)">\n${head}\n${body}\n</g>`, th);
 }
 
 /* ── chart: weekly commit activity ──────────────────────────────────────── */
@@ -292,8 +302,8 @@ function activityChart(timeline, locale, mode, title = "") {
   const head = title ? text(0, 16, title, { size: 12, weight: 700, fill: th.primary }) : "";
 
   if (timeline.length < 2) {
-    return svg(W, m.top + 50, `${head}
-${text(W / 2, m.top + 24, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}`, th);
+    return svg(W, m.top + 50, `<g>${head}
+${text(W / 2, m.top + 24, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}</g>`, th);
   }
 
   const max = Math.max(...timeline.map((w) => w.total), 1);
@@ -322,12 +332,15 @@ ${text(m.left - 8, Y(v) + 4, String(Math.round(v)), { size: 10, fill: th.muted, 
       { size: 10, fill: th.muted, anchor });
   }).join("\n");
 
-  return svg(W, H, `${head}
+  // Flush left, matching the outer edge of the grid tiles below.
+  return svg(W, H, `<g>
+${head}
 ${grid}
 <path d="${area}" fill="${th.brandSoft}"/>
 <path d="${line}" fill="none" stroke="${th.brand}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <line x1="${m.left}" y1="${Y(0)}" x2="${W - m.right}" y2="${Y(0)}" stroke="${th.axis}" stroke-width="1"/>
-${xLabels}`, th);
+${xLabels}
+</g>`, th);
 }
 
 /** GitHub returns weekday buckets Sunday-first; present them Monday-first. */
@@ -359,8 +372,11 @@ function picture(org, base, alt, width = "100%") {
 /** Two half-width charts per row. Plain images rather than a table: GitHub
  *  draws borders around every table, which would box each chart in a frame. */
 function chartGrid(org, locale, pairs) {
+  // Left-aligned, not centred: centring splits the leftover width into two
+  // side margins, which pushes the tiles' titles out of line with the
+  // full-width chart below them by a margin that changes with viewport width.
   return pairs.map(([a, b]) =>
-    `<p align="center">
+    `<p>
 ${picture(org, `${a.base}-${locale}`, a.alt, "48%")}
 ${picture(org, `${b.base}-${locale}`, b.alt, "48%")}
 </p>`).join("\n\n");
@@ -617,12 +633,16 @@ async function main() {
       const rowA = Math.max(data.languages.length, data.licenses.length);
       const rowB = Math.max(days.length, data.perRepo.length);
 
+      // Left-column tiles pad on the right, right-column tiles pad on the left,
+      // so the whole gutter lands between them and the outer edges stay flush.
+      const L = { padRight: GUTTER }, R = { padLeft: GUTTER };
+
       await w("stats", kpiStrip(data, locale, mode));
-      await w("languages", barRows(data.languages, locale, mode, { title: m.languages[locale], rows: rowA }));
-      await w("licenses", barRows(data.licenses, locale, mode, { unit: "count", title: m.licenses[locale], rows: rowA }));
-      await w("weekday", barRows(days, locale, mode, { unit: "count", title: m.weekday[locale], rows: rowB }));
+      await w("languages", barRows(data.languages, locale, mode, { ...L, title: m.languages[locale], rows: rowA }));
+      await w("licenses", barRows(data.licenses, locale, mode, { ...R, unit: "count", title: m.licenses[locale], rows: rowA }));
+      await w("weekday", barRows(days, locale, mode, { ...L, unit: "count", title: m.weekday[locale], rows: rowB }));
       // Repo names are long; give the label column extra room before clipping.
-      await w("perrepo", barRows(data.perRepo, locale, mode, { unit: "count", title: m.perRepo[locale], rows: rowB, labelPct: 0.46 }));
+      await w("perrepo", barRows(data.perRepo, locale, mode, { ...R, unit: "count", title: m.perRepo[locale], rows: rowB, labelPct: 0.46 }));
       await w("activity", activityChart(data.timeline, locale, mode, m.activity[locale]));
     }
   }
