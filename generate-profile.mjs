@@ -100,7 +100,8 @@ async function collect(org) {
   console.log(`  ${repos.length} public repos`);
 
   const languages = new Map(), licenses = new Map();
-  const contributors = new Map(), weeks = new Map();
+  const contributors = new Map(), weeks = new Map(), perRepo = new Map();
+  const weekdays = [0, 0, 0, 0, 0, 0, 0]; // Sunday-first, as GitHub returns it
   let stars = 0, releases = 0;
 
   for (const repo of repos) {
@@ -126,9 +127,14 @@ async function collect(org) {
     }
 
     const activity = await api(`/repos/${org}/${repo.name}/stats/commit_activity`);
+    let repoCommits = 0;
     for (const w of Array.isArray(activity) ? activity : []) {
       weeks.set(w.week, (weeks.get(w.week) || 0) + w.total);
+      repoCommits += w.total;
+      // days[] is Sunday-first; fold it into the same order the labels use.
+      (w.days || []).forEach((n, d) => { weekdays[d] += n; });
     }
+    if (repoCommits > 0) perRepo.set(repo.name, repoCommits);
 
     const rels = (await api(`/repos/${org}/${repo.name}/releases?per_page=100`)) || [];
     releases += rels.length;
@@ -141,9 +147,10 @@ async function collect(org) {
     .map(([week, total]) => ({ week, total }));
 
   return {
-    org, repos, stars, releases, timeline,
+    org, repos, stars, releases, timeline, weekdays,
     languages: rank(languages, 6),
     licenses: rank(licenses, 6),
+    perRepo: rank(perRepo, 6),
     contributors: [...contributors.values()].sort((a, b) => b.contributions - a.contributions),
     commits12mo: timeline.reduce((s, w) => s + w.total, 0),
   };
@@ -230,12 +237,29 @@ ${text(cx, 72, label.toUpperCase(), { size: 10, weight: 600, fill: th.muted, anc
  * than the segment gap — literally invisible. Separate rows give every class a
  * readable bar and a direct label.
  */
-function barRows(items, locale, mode, { unit = "%" } = {}) {
+function barRows(items, locale, mode, { unit = "%", title = "", width = 520, labelPct = 0.26, rows = 0 } = {}) {
   const th = THEME[mode], t = T[locale];
-  const W = 860, labelW = 132, valueW = 78, rowH = 30, barH = 12, r = 6;
+  // Proportions scale with the canvas so the same function serves both the
+  // half-width grid tiles and any full-width use.
+  const W = width, labelW = Math.round(W * labelPct), valueW = Math.round(W * 0.12);
+  const rowH = 28, barH = 11, r = 5;
+  const top = title ? 34 : 8;
+  // `rows` reserves a fixed number of slots so two charts sitting side by side
+  // in the grid end up the same height. Without it they are baseline-aligned by
+  // the browser and the shorter one visibly sags.
+  const slots = Math.max(rows, items.length);
+  // Labels are clipped to what actually fits: a long repo name at 11px would
+  // otherwise run straight under its own bar.
+  const maxChars = Math.max(6, Math.floor((labelW - 8) / 6.1));
+  const clip = (s) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s);
+
+  const head = title
+    ? text(0, 16, title, { size: 12, weight: 700, fill: th.primary })
+    : "";
 
   if (!items.length) {
-    return svg(W, 60, text(W / 2, 34, t.noData, { size: 13, fill: th.muted, anchor: "middle" }), th);
+    return svg(W, top + 40, `${head}
+${text(W / 2, top + 20, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}`, th);
   }
 
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
@@ -244,30 +268,32 @@ function barRows(items, locale, mode, { unit = "%" } = {}) {
   const label = (i) => (i.name === "__other__" ? t.other : i.name);
   const value = (i) => unit === "%" ? `${((i.value / total) * 100).toFixed(1)}%` : String(i.value);
 
-  const rows = items.map((item, i) => {
-    const y = i * rowH + 8, mid = y + barH / 2;
+  const body = items.map((item, i) => {
+    const y = top + i * rowH, mid = y + barH / 2;
     // Scaled against the largest value, not the total, so a small class still
     // renders as a bar you can see and compare.
     const w = Math.max(2, (item.value / max) * trackW);
-    return `${text(0, mid + 4, label(item), { size: 12, weight: 600, fill: th.primary })}
+    return `${text(0, mid + 4, clip(label(item)), { size: 11, weight: 600, fill: th.primary })}
 <rect x="${labelW}" y="${y}" width="${trackW}" height="${barH}" rx="${r}" fill="${th.grid}"/>
 <rect x="${labelW}" y="${y}" width="${w.toFixed(1)}" height="${barH}" rx="${r}" fill="${th.brand}"/>
-${text(W, mid + 4, value(item), { size: 12, fill: th.secondary, anchor: "end" })}`;
+${text(W, mid + 4, value(item), { size: 11, fill: th.secondary, anchor: "end" })}`;
   }).join("\n");
 
-  return svg(W, items.length * rowH + 12, rows, th);
+  return svg(W, top + slots * rowH + 6, `${head}\n${body}`, th);
 }
 
 /* ── chart: weekly commit activity ──────────────────────────────────────── */
 
-function activityChart(timeline, locale, mode) {
+function activityChart(timeline, locale, mode, title = "") {
   const th = THEME[mode], t = T[locale];
-  const W = 860, H = 190;
-  const m = { top: 16, right: 8, bottom: 28, left: 40 };
+  const W = 1060, H = title ? 210 : 190;
+  const m = { top: title ? 38 : 16, right: 8, bottom: 28, left: 40 };
   const iw = W - m.left - m.right, ih = H - m.top - m.bottom;
+  const head = title ? text(0, 16, title, { size: 12, weight: 700, fill: th.primary }) : "";
 
   if (timeline.length < 2) {
-    return svg(W, 80, text(W / 2, 44, t.noData, { size: 13, fill: th.muted, anchor: "middle" }), th);
+    return svg(W, m.top + 50, `${head}
+${text(W / 2, m.top + 24, t.noData, { size: 12, fill: th.muted, anchor: "middle" })}`, th);
   }
 
   const max = Math.max(...timeline.map((w) => w.total), 1);
@@ -288,7 +314,7 @@ ${text(m.left - 8, Y(v) + 4, String(Math.round(v)), { size: 10, fill: th.muted, 
   // Evenly spaced ticks. Labelling every month change instead drops whichever
   // months fall too close together, which reads as a bug rather than thinning.
   const monthFmt = new Intl.DateTimeFormat(locale, { month: "short" });
-  const ticks = 6;
+  const ticks = 8;
   const xLabels = Array.from({ length: ticks }, (_, k) => {
     const i = Math.round((k / (ticks - 1)) * (timeline.length - 1));
     const anchor = k === 0 ? "start" : k === ticks - 1 ? "end" : "middle";
@@ -296,45 +322,67 @@ ${text(m.left - 8, Y(v) + 4, String(Math.round(v)), { size: 10, fill: th.muted, 
       { size: 10, fill: th.muted, anchor });
   }).join("\n");
 
-  return svg(W, H, `${grid}
+  return svg(W, H, `${head}
+${grid}
 <path d="${area}" fill="${th.brandSoft}"/>
 <path d="${line}" fill="none" stroke="${th.brand}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <line x1="${m.left}" y1="${Y(0)}" x2="${W - m.right}" y2="${Y(0)}" stroke="${th.axis}" stroke-width="1"/>
 ${xLabels}`, th);
 }
 
+/** GitHub returns weekday buckets Sunday-first; present them Monday-first. */
+function weekdayItems(weekdays, locale) {
+  const fmt = new Intl.DateTimeFormat(locale, { weekday: "short" });
+  // 2024-01-07 was a Sunday, so +d lands on weekday d.
+  return [1, 2, 3, 4, 5, 6, 0].map((d) => ({
+    name: fmt.format(new Date(Date.UTC(2024, 0, 7 + d))).replace(".", ""),
+    value: weekdays[d] || 0,
+  }));
+}
+
 /* ── markdown rendering ─────────────────────────────────────────────────── */
 
 const RAW = (org) => `https://raw.githubusercontent.com/${org}/.github/main/profile/assets`;
+const BLOB = (org, p) => `https://github.com/${org}/.github/blob/main/profile/${p}`;
 const EN_URL = (org) => `https://github.com/${org}`;
-const ES_URL = (org) => `https://github.com/${org}/.github/blob/main/profile/README.es.md`;
+const ES_URL = (org) => BLOB(org, "README.es.md");
 
-function picture(org, base, alt) {
+const pageFile = (groupId, locale) => `projects/${groupId}${locale === "es" ? ".es" : ""}.md`;
+
+function picture(org, base, alt, width = "100%") {
   return `<picture>
   <source media="(prefers-color-scheme: dark)" srcset="${RAW(org)}/${base}-dark.svg">
-  <img alt="${esc(alt)}" src="${RAW(org)}/${base}-light.svg" width="100%">
+  <img alt="${esc(alt)}" src="${RAW(org)}/${base}-light.svg" width="${width}">
 </picture>`;
 }
 
-function tabBar(org, locale) {
+/** Two half-width charts per row. Plain images rather than a table: GitHub
+ *  draws borders around every table, which would box each chart in a frame. */
+function chartGrid(org, locale, pairs) {
+  return pairs.map(([a, b]) =>
+    `<p align="center">
+${picture(org, `${a.base}-${locale}`, a.alt, "48%")}
+${picture(org, `${b.base}-${locale}`, b.alt, "48%")}
+</p>`).join("\n\n");
+}
+
+function tabBar(org, locale, { enHref, esHref }) {
   const img = (name, alt) =>
     `<picture><source media="(prefers-color-scheme: dark)" srcset="${RAW(org)}/${name}-dark.svg"><img alt="${alt}" src="${RAW(org)}/${name}-light.svg" height="32"></picture>`;
-  // Kept on one line and without whitespace between the anchors so the two
-  // images butt together into a single bar instead of being spaced apart.
-  const en = `<a href="${EN_URL(org)}">${img(locale === "en" ? "tab-en-on" : "tab-en-off", "EN")}</a>`;
-  const es = `<a href="${ES_URL(org)}">${img(locale === "es" ? "tab-es-on" : "tab-es-off", "ES")}</a>`;
-  return `${en}${es}`;
+  // One line, no whitespace between the anchors, so the two images butt
+  // together into a single bar instead of being spaced apart.
+  return `<a href="${enHref}">${img(locale === "en" ? "tab-en-on" : "tab-en-off", "EN")}</a><a href="${esHref}">${img(locale === "es" ? "tab-es-on" : "tab-es-off", "ES")}</a>`;
 }
 
 /* ── per-repo badges (shields.io) ────────────────────────────────────────
- * These are the one place a third-party service genuinely earns its keep:
- * shields.io re-reads GitHub and npm on every page load, so release, stars,
- * downloads and last-commit are live without this repo committing anything.
+ * The one place a third-party service genuinely earns its keep: shields.io
+ * re-reads GitHub and npm on every page load, so release, stars, downloads and
+ * last-commit are live without this repo committing anything.
  *
- * It is used only for per-repo facts, because that is all it can do. Tested
+ * Used only for per-repo facts, because that is all it can do. Tested
  * 2026-08-06 against this org: github-readme-stats returned DEPLOYMENT_PAUSED,
  * github-profile-summary-cards 500, star-history 503 and contrib.rocks would
- * not connect — so the organisation-wide aggregates below stay self-generated.
+ * not connect — so the organisation-wide aggregates stay self-generated.
  * shields.io's dynamic-JSON badge cannot cover them either: pointed at
  * api.github.com it renders "invalid", since it calls the API unauthenticated.
  */
@@ -342,10 +390,8 @@ const SHIELD = "https://img.shields.io";
 const STYLE = "style=flat-square&color=0d9488&labelColor=1f2328";
 
 function badges(org, p, r) {
-  const out = [];
   const img = (url, alt) => `<img alt="${esc(alt)}" src="${url}">`;
-
-  // Plain static chip — the language is a fact about the repo, not a metric.
+  const out = [];
   if (r.language) out.push(img(`${SHIELD}/badge/${encodeURIComponent(r.language)}-1f2328?style=flat-square`, r.language));
   if (p.npm) {
     out.push(img(`${SHIELD}/npm/v/${p.npm}?${STYLE}&label=npm`, "npm version"));
@@ -356,58 +402,99 @@ function badges(org, p, r) {
   out.push(img(`${SHIELD}/github/license/${org}/${r.name}?${STYLE}&label=license`, "license"));
   out.push(img(`${SHIELD}/github/stars/${org}/${r.name}?${STYLE}&label=stars`, "stars"));
   out.push(img(`${SHIELD}/github/last-commit/${org}/${r.name}?${STYLE}&label=last%20commit`, "last commit"));
-  return out;
+  return out.join(" ");
 }
 
-function projectsSection(data, content, locale) {
+/** Compact category cards on the profile — one row per project type, linking
+ *  out to its own page. Keeps the profile short; the detail lives elsewhere. */
+function projectIndex(data, content, locale) {
+  const org = data.org;
   const byName = new Map(data.repos.map((r) => [r.name, r]));
-  const out = [];
+  const c = content.copy.projects;
 
-  for (const group of content.groups) {
-    const inGroup = content.projects.filter((p) => p.group === group.id && byName.has(p.repo));
-    if (!inGroup.length) continue;
+  const cells = content.groups.map((g) => {
+    const published = content.projects.filter((p) => p.group === g.id && byName.has(p.repo));
+    const pending = content.projects.filter((p) => p.group === g.id && !byName.has(p.repo));
+    const href = BLOB(org, pageFile(g.id, locale));
+    const counts = [`<b>${published.length}</b> ${c.count[locale]}`];
+    if (pending.length) counts.push(`<b>${pending.length}</b> ${c.soonHeading[locale].toLowerCase()}`);
+    return `<td width="50%" valign="top">
+<h3><a href="${href}">${g.label[locale]}</a></h3>
+<p><sub>${g.blurb[locale]}</sub></p>
+<p><sub>${counts.join(" · ")}</sub></p>
+<p><a href="${href}"><b>${c.viewAll[locale]} →</b></a></p>
+</td>`;
+  }).join("\n");
 
-    out.push(`#### ${group.label[locale]}\n`);
-    out.push(`<sub>${group.blurb[locale]}</sub>\n`);
-    out.push("<table>");
-    for (const p of inGroup) {
-      const r = byName.get(p.repo);
-      const chips = badges(data.org, p, r).join(" ");
-      const links = [
-        `<a href="${r.html_url}">GitHub</a>`,
-        p.moodleUrl && `<a href="${p.moodleUrl}">Moodle.org</a>`,
-        p.npm && `<a href="https://www.npmjs.com/package/${p.npm}">npm</a>`,
-      ].filter(Boolean).join(" · ");
+  return `<table>\n<tr>\n${cells}\n</tr>\n</table>`;
+}
 
-      out.push(`<tr>
-<td width="100%">
-<b><a href="${r.html_url}">${esc(p.name)}</a></b><br>
-<sub>${chips}</sub>
-<p>${esc(p.desc[locale])}</p>
-${p.npm ? `<pre><code>npm install ${esc(p.npm)}</code></pre>` : ""}
+/** The full listing, one page per project type. */
+function renderProjectPage(data, content, group, locale) {
+  const org = data.org;
+  const byName = new Map(data.repos.map((r) => [r.name, r]));
+  const c = content.copy.projects;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const published = content.projects.filter((p) => p.group === group.id && byName.has(p.repo));
+  const pending = content.projects.filter((p) => p.group === group.id && !byName.has(p.repo));
+
+  const cards = published.map((p) => {
+    const r = byName.get(p.repo);
+    const links = [
+      `<a href="${r.html_url}">GitHub</a>`,
+      p.moodleUrl && `<a href="${p.moodleUrl}">Moodle.org</a>`,
+      p.npm && `<a href="https://www.npmjs.com/package/${p.npm}">npm</a>`,
+    ].filter(Boolean).join(" · ");
+    const install = p.npm ? ["", "```bash", `npm install ${p.npm}`, "```", ""].join("\n") : "";
+    return `<h3><a href="${r.html_url}">${esc(p.name)}</a></h3>
+
+<p>${badges(org, p, r)}</p>
+
+${esc(p.desc[locale])}
+${install}
 <sub>${links}</sub>
-</td>
-</tr>`);
-    }
-    out.push("</table>\n");
-  }
 
-  // Curated entries with no public repo yet — listed, never linked.
-  const pending = content.projects.filter((p) => !byName.has(p.repo));
-  if (pending.length) {
-    out.push(`#### ${content.copy.projects.soonHeading[locale]}\n`);
-    out.push(`<sub>${content.copy.projects.soonNote[locale]}</sub>\n`);
-    for (const p of pending) out.push(`- **${p.name}** — ${p.desc[locale]}`);
-    out.push("");
-  }
-  return out.join("\n");
+---`;
+  }).join("\n\n");
+
+  const soon = pending.length ? `
+## ${c.soonHeading[locale]}
+
+<sub>${c.soonNote[locale]}</sub>
+
+${pending.map((p) => `- **${p.name}** — ${p.desc[locale]}`).join("\n")}
+` : "";
+
+  return `<!--
+  GENERATED FILE — DO NOT EDIT.
+  Rendered from profile/data/content.json + the GitHub API by
+  scripts/generate-profile.mjs. Last generated: ${stamp}
+-->
+
+${tabBar(org, locale, {
+    enHref: BLOB(org, pageFile(group.id, "en")),
+    esHref: BLOB(org, pageFile(group.id, "es")),
+  })}
+
+# ${group.label[locale]}
+
+${group.blurb[locale]}
+
+---
+
+${cards || `_${T[locale].noData}_`}
+${soon}
+<sub><a href="${locale === "es" ? ES_URL(org) : EN_URL(org)}">← ${c.back[locale]}</a></sub>
+`;
 }
 
 function contributorsSection(data, locale) {
   if (!data.contributors.length) return `_${T[locale].noData}_`;
+  // Separated with non-breaking spaces: GitHub strips style attributes, so this
+  // is the only horizontal spacing that survives sanitisation.
   const avatars = data.contributors.map((c) =>
-    `<a href="${c.url}" title="${esc(c.login)} · ${c.contributions} commits"><img src="${c.avatar}&s=72" width="56" height="56" alt="${esc(c.login)}"></a>`
-  ).join("");
+    `<a href="${c.url}" title="${esc(c.login)} · ${c.contributions} commits"><img src="${c.avatar}&s=96" width="64" height="64" alt="${esc(c.login)}"></a>`
+  ).join("&nbsp;&nbsp;&nbsp;&nbsp;");
   return `<p>${avatars}</p>`;
 }
 
@@ -421,18 +508,6 @@ function foundersSection(content, locale) {
   return `<table>\n<tr>\n${cells}\n</tr>\n</table>`;
 }
 
-function langTable(items, locale) {
-  const t = T[locale];
-  if (!items.length) return `_${t.noData}_`;
-  const total = items.reduce((s, i) => s + i.value, 0) || 1;
-  return [
-    `| ${t.language} | ${t.share} | ${t.bytes} |`,
-    "| --- | ---: | ---: |",
-    ...items.map((i) =>
-      `| ${i.name === "__other__" ? t.other : i.name} | ${((i.value / total) * 100).toFixed(1)}% | ${i.value.toLocaleString("en-US")} |`),
-  ].join("\n");
-}
-
 function renderReadme(data, content, locale) {
   const org = content.org.login;
   const c = content.copy;
@@ -440,14 +515,21 @@ function renderReadme(data, content, locale) {
   const other = locale === "en" ? "es" : "en";
   const otherUrl = other === "es" ? ES_URL(org) : EN_URL(org);
 
+  const grid = chartGrid(org, locale, [
+    [{ base: "languages", alt: c.metrics.languages[locale] },
+     { base: "licenses", alt: c.metrics.licenses[locale] }],
+    [{ base: "weekday", alt: c.metrics.weekday[locale] },
+     { base: "perrepo", alt: c.metrics.perRepo[locale] }],
+  ]);
+
   return `<!--
   GENERATED FILE — DO NOT EDIT.
   Rendered from profile/data/content.json + the GitHub API by
-  scripts/generate-profile.mjs, on a daily schedule. Edit the JSON, not this.
+  scripts/generate-profile.mjs, on a schedule. Edit the JSON, not this.
   Last generated: ${stamp}
 -->
 
-${tabBar(org, locale)}
+${tabBar(org, locale, { enHref: EN_URL(org), esHref: ES_URL(org) })}
 
 <h1 align="center">${content.org.name}</h1>
 
@@ -467,29 +549,15 @@ ${c.about.body[locale].join("\n\n")}
 
 > ${c.about.quote[locale]}
 
-## ${c.metrics.heading[locale]}
-
-**${c.metrics.languages[locale]}**
-
-${picture(org, `languages-${locale}`, c.metrics.languages[locale])}
-
-<details><summary><sub>${c.metrics.asTable[locale]}</sub></summary>
-
-${langTable(data.languages, locale)}
-
-</details>
-
-**${c.metrics.licenses[locale]}**
-
-${picture(org, `licenses-${locale}`, c.metrics.licenses[locale])}
-
-**${c.metrics.activity[locale]}**
-
-${picture(org, `activity-${locale}`, c.metrics.activity[locale])}
-
 ## ${c.projects.heading[locale]}
 
-${projectsSection(data, content, locale)}
+${projectIndex(data, content, locale)}
+
+## ${c.metrics.heading[locale]}
+
+${grid}
+
+${picture(org, `activity-${locale}`, c.metrics.activity[locale])}
 
 ## ${c.contributors.heading[locale]}
 
@@ -519,28 +587,55 @@ ${foundersSection(content, locale)}
 
 async function main() {
   const content = JSON.parse(await readFile(join(ROOT, "profile", "data", "content.json"), "utf8"));
-  const data = await collect(content.org.login);
+
+  // PROFILE_FIXTURE=<path> renders from a saved snapshot instead of calling the
+  // API — useful for working on layout without burning the 60 req/hour that an
+  // unauthenticated run gets. PROFILE_DUMP=<path> writes the snapshot back out.
+  const data = process.env.PROFILE_FIXTURE
+    ? JSON.parse(await readFile(process.env.PROFILE_FIXTURE, "utf8"))
+    : await collect(content.org.login);
+  if (process.env.PROFILE_DUMP) {
+    await writeFile(process.env.PROFILE_DUMP, JSON.stringify(data, null, 2), "utf8");
+  }
 
   await mkdir(ASSETS, { recursive: true });
+  await mkdir(join(ROOT, "profile", "projects"), { recursive: true });
+
   console.log("Rendering assets …");
   for (const mode of MODES) {
-    await writeFile(join(ASSETS, `tab-en-on-${mode}.svg`), tab("EN", true, mode), "utf8");
-    await writeFile(join(ASSETS, `tab-en-off-${mode}.svg`), tab("EN", false, mode), "utf8");
-    await writeFile(join(ASSETS, `tab-es-on-${mode}.svg`), tab("ES", true, mode), "utf8");
-    await writeFile(join(ASSETS, `tab-es-off-${mode}.svg`), tab("ES", false, mode), "utf8");
-
+    for (const lang of LOCALES) {
+      for (const on of [true, false]) {
+        await writeFile(join(ASSETS, `tab-${lang}-${on ? "on" : "off"}-${mode}.svg`),
+          tab(lang.toUpperCase(), on, mode), "utf8");
+      }
+    }
     for (const locale of LOCALES) {
+      const m = content.copy.metrics;
       const w = (n, c) => writeFile(join(ASSETS, `${n}-${locale}-${mode}.svg`), c, "utf8");
+      const days = weekdayItems(data.weekdays, locale);
+      // Each grid row is rendered at a shared height so the two tiles line up.
+      const rowA = Math.max(data.languages.length, data.licenses.length);
+      const rowB = Math.max(days.length, data.perRepo.length);
+
       await w("stats", kpiStrip(data, locale, mode));
-      await w("languages", barRows(data.languages, locale, mode));
-      await w("licenses", barRows(data.licenses, locale, mode, { unit: "count" }));
-      await w("activity", activityChart(data.timeline, locale, mode));
+      await w("languages", barRows(data.languages, locale, mode, { title: m.languages[locale], rows: rowA }));
+      await w("licenses", barRows(data.licenses, locale, mode, { unit: "count", title: m.licenses[locale], rows: rowA }));
+      await w("weekday", barRows(days, locale, mode, { unit: "count", title: m.weekday[locale], rows: rowB }));
+      // Repo names are long; give the label column extra room before clipping.
+      await w("perrepo", barRows(data.perRepo, locale, mode, { unit: "count", title: m.perRepo[locale], rows: rowB, labelPct: 0.46 }));
+      await w("activity", activityChart(data.timeline, locale, mode, m.activity[locale]));
     }
   }
 
-  console.log("Rendering READMEs …");
-  await writeFile(join(ROOT, "profile", "README.md"), renderReadme(data, content, "en"), "utf8");
-  await writeFile(join(ROOT, "profile", "README.es.md"), renderReadme(data, content, "es"), "utf8");
+  console.log("Rendering pages …");
+  for (const locale of LOCALES) {
+    const file = locale === "es" ? "README.es.md" : "README.md";
+    await writeFile(join(ROOT, "profile", file), renderReadme(data, content, locale), "utf8");
+    for (const group of content.groups) {
+      await writeFile(join(ROOT, "profile", pageFile(group.id, locale)),
+        renderProjectPage(data, content, group, locale), "utf8");
+    }
+  }
 
   console.log(`\nDone. ${data.repos.length} repos · ${data.contributors.length} contributors · ${data.commits12mo} commits/12mo · ${data.stars} stars · ${data.releases} releases`);
   if (warned.length) console.log(`${warned.length} warning(s) above.`);
