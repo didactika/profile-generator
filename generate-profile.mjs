@@ -57,7 +57,7 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-s
 // It has to be generous: what faces across the gutter is the left tile's value
 // column against the right tile's label column — text against text. Anything
 // tighter and "79.7%" reads as though it belongs to "MIT".
-const GUTTER = 62;
+const GUTTER = 30;
 
 const T = {
   en: { repos: "Repositories", contributors: "Contributors", stars: "Stars",
@@ -240,7 +240,7 @@ function kpiStrip(data, locale, mode) {
     [fmt(data.stars), t.stars],
     [fmt(data.releases), t.releases],
   ];
-  const W = 860, H = 96, pad = 4, cw = (W - pad * 2) / tiles.length;
+  const W = 860, H = 30, pad = 4, cw = (W - pad * 2) / tiles.length;
 
   const body = tiles.map(([value, label], i) => {
     const cx = pad + cw * i + cw / 2;
