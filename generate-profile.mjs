@@ -240,7 +240,10 @@ function kpiStrip(data, locale, mode) {
     [fmt(data.stars), t.stars],
     [fmt(data.releases), t.releases],
   ];
-  const W = 860, H = 30, pad = 4, cw = (W - pad * 2) / tiles.length;
+  // H must clear the tallest glyph plus the label: the value sits on a baseline
+  // at y=50 with a 34px face and the label baseline at y=72, so anything under
+  // ~86 clips the numbers top and bottom.
+  const W = 860, H = 86, pad = 4, cw = (W - pad * 2) / tiles.length;
 
   const body = tiles.map(([value, label], i) => {
     const cx = pad + cw * i + cw / 2;
