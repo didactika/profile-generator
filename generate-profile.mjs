@@ -53,7 +53,11 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-s
 // Half the gutter between two grid tiles, in chart units. Applied only to a
 // tile's inner edge, so none of it is wasted as an outer margin and the outer
 // edges stay flush with the full-width charts above and below.
-const GUTTER = 44;
+//
+// It has to be generous: what faces across the gutter is the left tile's value
+// column against the right tile's label column — text against text. Anything
+// tighter and "79.7%" reads as though it belongs to "MIT".
+const GUTTER = 96;
 
 const T = {
   en: { repos: "Repositories", contributors: "Contributors", stars: "Stars",
@@ -87,7 +91,23 @@ async function api(path, { retries202 = 5 } = {}) {
       await sleep(2000 * (attempt + 1));
       continue;
     }
-    if ([202, 403, 404].includes(res.status)) {
+    // Rate limiting is fatal, never "empty". Swallowing it would let a
+    // throttled run overwrite good charts with zeros and commit them.
+    if (res.status === 403 || res.status === 429) {
+      const remaining = res.headers.get("x-ratelimit-remaining");
+      if (remaining === "0" || res.status === 429) {
+        const reset = Number(res.headers.get("x-ratelimit-reset") || 0) * 1000;
+        const mins = reset ? Math.ceil((reset - Date.now()) / 60000) : "?";
+        throw new Error(
+          `GitHub API rate limit exhausted (resets in ~${mins} min).\n` +
+          (token ? "" : "No GITHUB_TOKEN set — unauthenticated runs get only 60 requests/hour.\n") +
+          "Refusing to render: a throttled run would replace real figures with zeros."
+        );
+      }
+      warn(`403 on ${path} (not rate limiting) — treating as empty`);
+      return null;
+    }
+    if ([202, 404].includes(res.status)) {
       warn(`${res.status} on ${path} — treating as empty`);
       return null;
     }
