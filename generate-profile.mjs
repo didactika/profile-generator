@@ -57,7 +57,7 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-s
 // It has to be generous: what faces across the gutter is the left tile's value
 // column against the right tile's label column — text against text. Anything
 // tighter and "79.7%" reads as though it belongs to "MIT".
-const GUTTER = 96;
+const GUTTER = 62;
 
 const T = {
   en: { repos: "Repositories", contributors: "Contributors", stars: "Stars",
