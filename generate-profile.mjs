@@ -75,11 +75,22 @@ async function main() {
   const content = await Content.load(PATHS.content);
   const data = await gather(content);
 
-  if (process.env.PROFILE_DUMP) {
-    await writeFile(process.env.PROFILE_DUMP, JSON.stringify(data, null, 2), "utf8");
-  }
-
+  // Rendered before the dump is written, and the dump never allowed to abort
+  // the run. PROFILE_DUMP is a debugging aid; collecting the data it would
+  // dump costs one API request per repository, and having an unwritable path
+  // throw away a collection that has already been paid for — after spending
+  // the budget and before rendering anything — is the worst possible order.
+  // A path that does not exist is worth a warning, not the whole run.
   await new ProfileGenerator({ content, data, log }).run();
+
+  if (process.env.PROFILE_DUMP) {
+    try {
+      await writeFile(process.env.PROFILE_DUMP, JSON.stringify(data, null, 2), "utf8");
+      log.detail(`Snapshot written to ${process.env.PROFILE_DUMP}`);
+    } catch (error) {
+      log.warn(`Could not write PROFILE_DUMP to ${process.env.PROFILE_DUMP}: ${error.message}`);
+    }
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
