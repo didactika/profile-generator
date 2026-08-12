@@ -178,8 +178,8 @@ test("renders a parent organization and a single founder without requiring a web
     stamp: "2026-08-12",
   }).render();
 
-  assert.match(output, /<sub>Part of<\/sub><br>\s*<strong><a href="https:\/\/github\.com\/didactika">Didactika<\/a>/);
-  assert.match(output, /<td width="100%"/);
+  assert.match(output, /<p align="center"><sub>Part of · <a href="https:\/\/github\.com\/didactika"><strong>Didactika<\/strong><\/a><\/sub><\/p>/);
+  assert.doesNotMatch(output, /<table>\s*<tr><td[^>]*>\s*<sub>Part of/);
   assert.doesNotMatch(output, /href="undefined"/);
 });
 
@@ -207,7 +207,7 @@ test("renders only sections enabled by profile data", () => {
   assert.doesNotMatch(output, /^## /m);
 });
 
-test("renders project groups as separate full-width rows", () => {
+test("renders project groups side by side and lets an unpaired group span the row", () => {
   const localized = (value) => ({ en: value, es: value });
   const content = new Content({
     org: { login: "didactika", name: "Didactika", tagline: localized("Tagline") },
@@ -225,6 +225,7 @@ test("renders project groups as separate full-width rows", () => {
     groups: [
       { id: "npm", label: localized("Packages"), blurb: localized("Libraries") },
       { id: "moodle", label: localized("Moodle"), blurb: localized("Plugins") },
+      { id: "tools", label: localized("Tools"), blurb: localized("Utilities") },
     ],
     projects: [], founders: [],
   });
@@ -236,7 +237,8 @@ test("renders project groups as separate full-width rows", () => {
     content, data: { repos: [], contributors: [] }, links, locale: "en", stamp: "2026-08-12",
   }).render();
 
-  assert.equal((output.match(/<tr><td width="100%"/g) || []).length, 2);
-  assert.doesNotMatch(output, /width="50%"/);
+  assert.equal((output.match(/<td width="50%"/g) || []).length, 2);
+  assert.equal((output.match(/<td width="100%"/g) || []).length, 1);
+  assert.match(output, /<tr>\s*<td width="50%"[\s\S]*<td width="50%"[\s\S]*<\/tr>/);
   assert.doesNotMatch(output, /in development/i);
 });
