@@ -178,7 +178,65 @@ test("renders a parent organization and a single founder without requiring a web
     stamp: "2026-08-12",
   }).render();
 
-  assert.match(output, /Part of <strong><a href="https:\/\/github\.com\/didactika">Didactika<\/a>/);
+  assert.match(output, /<sub>Part of<\/sub><br>\s*<strong><a href="https:\/\/github\.com\/didactika">Didactika<\/a>/);
   assert.match(output, /<td width="100%"/);
   assert.doesNotMatch(output, /href="undefined"/);
+});
+
+test("renders only sections enabled by profile data", () => {
+  const localized = (value) => ({ en: value, es: value });
+  const content = new Content({
+    org: { login: "minimal", name: "Minimal", tagline: localized("Tagline") },
+    sections: {
+      about: { enabled: false }, projects: { enabled: false }, metrics: { enabled: false },
+      contributors: { enabled: false }, contributing: { enabled: false }, founders: { enabled: false },
+    },
+    copy: { footer: localized("Footer") },
+    groups: [], projects: [], founders: [],
+  });
+  const links = {
+    profileEn: "https://github.com/minimal", profileEs: "https://example.com/es",
+    tabBar: () => "", picture: () => { throw new Error("disabled metrics must not render pictures"); },
+  };
+
+  const output = new ReadmePage({
+    content, data: { repos: [], contributors: [] }, links, locale: "en", stamp: "2026-08-12",
+  }).render();
+
+  assert.match(output, /<h1 align="center">Minimal<\/h1>/);
+  assert.doesNotMatch(output, /^## /m);
+});
+
+test("renders project groups as separate full-width rows", () => {
+  const localized = (value) => ({ en: value, es: value });
+  const content = new Content({
+    org: { login: "didactika", name: "Didactika", tagline: localized("Tagline") },
+    sections: {
+      about: { enabled: false }, metrics: { enabled: false }, contributors: { enabled: false },
+      contributing: { enabled: false }, founders: { enabled: false }, projects: { enabled: true, showPending: false },
+    },
+    copy: {
+      projects: {
+        heading: localized("Projects"), count: localized("published"), viewAll: localized("Browse"),
+        soonHeading: localized("Soon"),
+      },
+      footer: localized("Footer"),
+    },
+    groups: [
+      { id: "npm", label: localized("Packages"), blurb: localized("Libraries") },
+      { id: "moodle", label: localized("Moodle"), blurb: localized("Plugins") },
+    ],
+    projects: [], founders: [],
+  });
+  const links = {
+    profileEn: "https://github.com/didactika", profileEs: "https://example.com/es",
+    tabBar: () => "", projectPage: (id) => `https://example.com/${id}`,
+  };
+  const output = new ReadmePage({
+    content, data: { repos: [], contributors: [] }, links, locale: "en", stamp: "2026-08-12",
+  }).render();
+
+  assert.equal((output.match(/<tr><td width="100%"/g) || []).length, 2);
+  assert.doesNotMatch(output, /width="50%"/);
+  assert.doesNotMatch(output, /in development/i);
 });
