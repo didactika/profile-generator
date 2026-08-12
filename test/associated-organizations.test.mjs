@@ -6,6 +6,8 @@ import { ReadmePage } from "../lib/pages/readme.mjs";
 import { ProfileCollector } from "../lib/sources/collector.mjs";
 import { Theme } from "../lib/theme.mjs";
 import { Badges } from "../lib/pages/badges.mjs";
+import { Links } from "../lib/pages/links.mjs";
+import { ParentAffiliation } from "../lib/drawings/parent-affiliation.mjs";
 
 function repository(fullName, extra = {}) {
   const [owner, name] = fullName.split("/");
@@ -188,6 +190,8 @@ test("renders a parent directly below the organization name", () => {
     tabBar: () => "",
     picture: () => "",
     chartGrid: () => "",
+    parentAffiliation: (locale, label, url) =>
+      `<a href="${url}"><img src="parent-${locale}.svg" alt="${label}" height="12"></a>`,
   };
 
   const output = new ReadmePage({
@@ -198,9 +202,29 @@ test("renders a parent directly below the organization name", () => {
     stamp: "2026-08-12",
   }).render();
 
-  assert.match(output, /<h1 align="center">ResilientMQ<br><sub><sub>Part of · <a href="https:\/\/github\.com\/didactika">Didactika<\/a><\/sub><\/sub><\/h1>/);
+  assert.match(output, /<h1 align="center">ResilientMQ<br><a href="https:\/\/github\.com\/didactika"><img src="parent-en\.svg" alt="Part of · Didactika" height="12"><\/a><\/h1>/);
   assert.doesNotMatch(output, /<\/h1>\s*<p[^>]*>[^<]*Part of/);
   assert.doesNotMatch(output, /href="undefined"/);
+});
+
+test("draws parent affiliations at a fixed tiny size", () => {
+  const svg = new ParentAffiliation(new Theme("dark"), "Part of · Didactika").render();
+
+  assert.match(svg, /<svg[^>]*height="12"/);
+  assert.match(svg, /font-size="9"/);
+  assert.match(svg, />Part of · Didactika<\/text>/);
+});
+
+test("links the tiny affiliation with light and dark assets", () => {
+  const output = new Links("resilientmq", "main").parentAffiliation(
+    "en", "Part of · Didactika", "https://github.com/didactika",
+  );
+
+  assert.match(output, /^<a href="https:\/\/github\.com\/didactika">/);
+  assert.match(output, /parent-en-dark\.svg/);
+  assert.match(output, /parent-en-light\.svg/);
+  assert.match(output, /alt="Part of · Didactika"/);
+  assert.match(output, /height="12"/);
 });
 
 test("renders member organizations at the end from GitHub profile data", () => {
