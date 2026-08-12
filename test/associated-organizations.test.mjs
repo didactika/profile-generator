@@ -4,6 +4,8 @@ import test from "node:test";
 import { Content } from "../lib/content.mjs";
 import { ReadmePage } from "../lib/pages/readme.mjs";
 import { ProfileCollector } from "../lib/sources/collector.mjs";
+import { Theme } from "../lib/theme.mjs";
+import { Badges } from "../lib/pages/badges.mjs";
 
 function repository(fullName, extra = {}) {
   const [owner, name] = fullName.split("/");
@@ -28,6 +30,18 @@ test("aggregates repositories from associated organizations", async () => {
   const github = {
     async get(path) {
       calls.push(path);
+      if (path === "/orgs/didactika") {
+        return {
+          login: "didactika", name: "Didactika", description: "Educational technology",
+          avatar_url: "didactika-avatar", html_url: "https://github.com/didactika", blog: "https://didactika.org",
+        };
+      }
+      if (path === "/orgs/resilientmq") {
+        return {
+          login: "resilientmq", name: "ResilientMQ", description: "Reliable event processing",
+          avatar_url: "resilient-avatar", html_url: "https://github.com/resilientmq", blog: "",
+        };
+      }
       if (path.startsWith("/orgs/didactika/")) return [primary];
       if (path.startsWith("/orgs/resilientmq/")) return [associated];
       if (path.endsWith("/branches?per_page=100")) return [{ name: "main" }];
@@ -52,6 +66,8 @@ test("aggregates repositories from associated organizations", async () => {
   assert.equal(data.repos.length, 2);
   assert.equal(data.stars, 2);
   assert.equal(data.releases, 2);
+  assert.equal(data.organizations[1].description, "Reliable event processing");
+  assert.equal(data.organizations[1].avatar, "resilient-avatar");
   assert.equal(data.contributors[0].contributions, 20);
   assert.deepEqual(data.perRepo, [
     { name: "prisma-entity", value: 10 },
@@ -62,12 +78,16 @@ test("aggregates repositories from associated organizations", async () => {
 
 test("resolves short primary ids and qualified associated ids", () => {
   const content = new Content({
-    org: { login: "didactika", associatedOrganizations: ["resilientmq", { login: "another-org" }] },
+    org: {
+      login: "didactika",
+      associatedOrganizations: ["another-org"],
+      memberOrganizations: [{ login: "resilientmq", name: "ResilientMQ" }],
+    },
     projects: [],
   });
   const repos = [repository("didactika/core"), repository("resilientmq/core")];
 
-  assert.deepEqual(content.metricOrganizations, ["didactika", "resilientmq", "another-org"]);
+  assert.deepEqual(content.metricOrganizations, ["didactika", "another-org", "resilientmq"]);
   assert.equal(content.repositoryFor(repos, "core").full_name, "didactika/core");
   assert.equal(content.repositoryFor(repos, "resilientmq/core").full_name, "resilientmq/core");
 });
@@ -134,7 +154,7 @@ test("an explicit project group prevents dynamic reassignment", () => {
   assert.equal(content.projectsIn("types", repos).length, 1);
 });
 
-test("renders a parent organization and a single founder without requiring a website", () => {
+test("renders a parent directly below the organization name", () => {
   const localized = (value) => ({ en: value, es: value });
   const content = new Content({
     org: {
@@ -179,8 +199,65 @@ test("renders a parent organization and a single founder without requiring a web
   }).render();
 
   assert.match(output, /<p align="center"><sub>Part of · <a href="https:\/\/github\.com\/didactika"><strong>Didactika<\/strong><\/a><\/sub><\/p>/);
-  assert.doesNotMatch(output, /<table>\s*<tr><td[^>]*>\s*<sub>Part of/);
+  assert.ok(output.indexOf("Part of") < output.indexOf("Reliable messaging"));
   assert.doesNotMatch(output, /href="undefined"/);
+});
+
+test("renders member organizations at the end from GitHub profile data", () => {
+  const localized = (value) => ({ en: value, es: value });
+  const content = new Content({
+    org: {
+      login: "didactika", name: "Didactika", tagline: localized("Tagline"),
+      memberOrganizations: [{ login: "resilientmq", name: "ResilientMQ" }],
+    },
+    sections: {
+      about: { enabled: false }, projects: { enabled: false }, metrics: { enabled: false },
+      contributors: { enabled: false }, contributing: { enabled: false }, founders: { enabled: false },
+      memberOrganizations: { enabled: true },
+    },
+    copy: {
+      memberOrganizations: { heading: localized("Member organizations") },
+      footer: localized("Footer"),
+    },
+    groups: [], projects: [], founders: [],
+  });
+  const links = {
+    profileEn: "https://github.com/didactika", profileEs: "https://example.com/es",
+    tabBar: () => "", picture: () => "",
+  };
+  const output = new ReadmePage({
+    content,
+    data: {
+      repos: [], contributors: [],
+      organizations: [{
+        login: "resilientmq", name: "RabbitMQ Resilience Packages",
+        description: "Reliable event processing for RabbitMQ",
+        avatar: "https://avatars.example/resilient?v=4", url: "https://github.com/resilientmq",
+      }],
+    },
+    links, locale: "en", stamp: "2026-08-12",
+  }).render();
+
+  assert.match(output, /## Member organizations/);
+  assert.match(output, /<img src="https:\/\/avatars\.example\/resilient\?v=4&s=160"[^>]*ResilientMQ logo/);
+  assert.match(output, /Reliable event processing for RabbitMQ/);
+  const memberSection = output.slice(output.indexOf("## Member organizations"));
+  assert.equal((memberSection.match(/^## /gm) || []).length, 1);
+});
+
+test("supports organization-specific brand colors", () => {
+  const custom = {
+    light: { brand: "#CC4D00" },
+    dark: { brand: "#FF7021" },
+  };
+  const light = new Theme("light", custom);
+  const dark = new Theme("dark", custom);
+
+  assert.equal(light.brand, "#CC4D00");
+  assert.equal(light.brandSoft, "rgba(204,77,0,0.14)");
+  assert.equal(dark.brand, "#FF7021");
+  assert.equal(dark.brandSoft, "rgba(255,112,33,0.18)");
+  assert.match(Badges.for({ npm: "@resilientmq/core" }, repository("resilientmq/core"), custom), /color=CC4D00/);
 });
 
 test("renders only sections enabled by profile data", () => {

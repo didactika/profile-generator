@@ -47,12 +47,24 @@ profile/projects/*.md       # written, one per project group per language
 profile/assets/*.svg        # written, light + dark
 ```
 
-Set `org.associatedOrganizations` to a list of GitHub organisation logins when
-the profile represents a wider initiative. Their public, non-archived,
-non-fork repositories are included in every aggregate. Project entries for an
-associated organisation use the owner-qualified form, for example
-`resilientmq/core`; repositories in the primary organisation may keep their
-short name.
+Set `org.memberOrganizations` to organisation logins (or objects with `login`
+and an optional display `name`) when other organisations belong to the
+initiative. Their public, non-archived, non-fork repositories are included in
+every aggregate, and the generator can render their live GitHub avatar and
+description in a final member-organisations section. Use
+`org.associatedOrganizations` only for an organisation whose metrics should be
+aggregated without presenting it as a member. Project entries outside the
+primary organisation use the owner-qualified form, for example
+`resilientmq/core`.
+
+`org.parent` renders a small hierarchical link directly below the organisation
+name. It is distinct from member organisations: a child profile points upward
+with `parent`, while the parent profile presents its children in the dedicated
+section.
+
+The optional top-level `theme` object customises generated SVGs and project
+badges without forking the generator. Declare `light.brand` and `dark.brand` as
+six-digit hex colours; the soft chart fill is derived automatically.
 
 Project groups can declare `projectTypes`, containing values from the
 organization custom property `project-type`. Public repositories with one of
@@ -63,11 +75,12 @@ name. An entry whose repository is not public remains an intentional “in
 development” preview.
 
 The top-level `sections` object controls the profile layout without code
-changes. `about`, `relationships`, `projects`, `metrics`, `contributors`,
-`contributing` and `founders` each accept `enabled: false`; omitted sections
-remain enabled for backwards compatibility. `sections.projects.showPending`
-controls whether declared projects without a public repository are shown, and
-individual project groups accept `enabled: false` as well.
+changes. `parent`, `about`, `projects`, `metrics`, `contributors`,
+`contributing`, `founders` and `memberOrganizations` each accept
+`enabled: false`; omitted sections remain enabled for backwards compatibility.
+`sections.projects.showPending` controls whether declared projects without a
+public repository are shown, and individual project groups accept
+`enabled: false` as well.
 
 ### Environment variables
 
