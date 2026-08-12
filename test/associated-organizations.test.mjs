@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { Content } from "../lib/content.mjs";
+import { ReadmePage } from "../lib/pages/readme.mjs";
 import { ProfileCollector } from "../lib/sources/collector.mjs";
 
 function repository(fullName) {
@@ -68,4 +69,53 @@ test("resolves short primary ids and qualified associated ids", () => {
   assert.deepEqual(content.metricOrganizations, ["didactika", "resilientmq", "another-org"]);
   assert.equal(content.repositoryFor(repos, "core").full_name, "didactika/core");
   assert.equal(content.repositoryFor(repos, "resilientmq/core").full_name, "resilientmq/core");
+});
+
+test("renders a parent organization and a single founder without requiring a website", () => {
+  const localized = (value) => ({ en: value, es: value });
+  const content = new Content({
+    org: {
+      login: "resilientmq",
+      name: "ResilientMQ",
+      tagline: localized("Reliable messaging"),
+      parent: { name: "Didactika", url: "https://github.com/didactika", label: localized("Part of") },
+    },
+    copy: {
+      about: { heading: localized("About"), body: { en: [], es: [] }, quote: localized("Quote") },
+      projects: { heading: localized("Projects") },
+      metrics: {
+        heading: localized("Metrics"), languages: localized("Languages"), licenses: localized("Licenses"),
+        weekday: localized("Weekdays"), perRepo: localized("Repositories"), activity: localized("Activity"),
+      },
+      contributors: { heading: localized("Contributors") },
+      contributing: { heading: localized("Contributing"), steps: { en: [], es: [] } },
+      founders: { heading: localized("Founder"), intro: localized("Intro"), role: localized("Founder") },
+      footer: localized("Footer"),
+    },
+    groups: [],
+    projects: [],
+    founders: [{
+      name: "Hector", github: "hector-ae21", linkedin: "https://example.com",
+      bio: localized("Bio"),
+    }],
+  });
+  const links = {
+    profileEn: "https://github.com/resilientmq",
+    profileEs: "https://example.com/es",
+    tabBar: () => "",
+    picture: () => "",
+    chartGrid: () => "",
+  };
+
+  const output = new ReadmePage({
+    content,
+    data: { repos: [], contributors: [] },
+    links,
+    locale: "en",
+    stamp: "2026-08-12",
+  }).render();
+
+  assert.match(output, /Part of <strong><a href="https:\/\/github\.com\/didactika">Didactika<\/a>/);
+  assert.match(output, /<td width="100%"/);
+  assert.doesNotMatch(output, /href="undefined"/);
 });
