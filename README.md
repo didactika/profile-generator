@@ -47,6 +47,13 @@ profile/projects/*.md       # written, one per project group per language
 profile/assets/*.svg        # written, light + dark
 ```
 
+Set `org.associatedOrganizations` to a list of GitHub organisation logins when
+the profile represents a wider initiative. Their public, non-archived,
+non-fork repositories are included in every aggregate. Project entries for an
+associated organisation use the owner-qualified form, for example
+`resilientmq/core`; repositories in the primary organisation may keep their
+short name.
+
 ### Environment variables
 
 | Variable | Effect |
