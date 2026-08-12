@@ -198,8 +198,8 @@ test("renders a parent directly below the organization name", () => {
     stamp: "2026-08-12",
   }).render();
 
-  assert.match(output, /<p align="center"><sub>Part of · <a href="https:\/\/github\.com\/didactika"><strong>Didactika<\/strong><\/a><\/sub><\/p>/);
-  assert.ok(output.indexOf("Part of") < output.indexOf("Reliable messaging"));
+  assert.match(output, /<h1 align="center">ResilientMQ<br><sub>Part of · <a href="https:\/\/github\.com\/didactika">Didactika<\/a><\/sub><\/h1>/);
+  assert.doesNotMatch(output, /<\/h1>\s*<p[^>]*>[^<]*Part of/);
   assert.doesNotMatch(output, /href="undefined"/);
 });
 
