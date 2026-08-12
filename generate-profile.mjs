@@ -68,7 +68,7 @@ async function gather(content) {
     }),
     log,
   });
-  return collector.collect(content.login);
+  return collector.collect(content.metricOrganizations);
 }
 
 async function main() {
