@@ -5,7 +5,7 @@ import { Content } from "../lib/content.mjs";
 import { ReadmePage } from "../lib/pages/readme.mjs";
 import { ProfileCollector } from "../lib/sources/collector.mjs";
 
-function repository(fullName) {
+function repository(fullName, extra = {}) {
   const [owner, name] = fullName.split("/");
   return {
     name,
@@ -17,6 +17,7 @@ function repository(fullName) {
     fork: false,
     stargazers_count: 1,
     license: { spdx_id: "MIT" },
+    ...extra,
   };
 }
 
@@ -69,6 +70,68 @@ test("resolves short primary ids and qualified associated ids", () => {
   assert.deepEqual(content.metricOrganizations, ["didactika", "resilientmq", "another-org"]);
   assert.equal(content.repositoryFor(repos, "core").full_name, "didactika/core");
   assert.equal(content.repositoryFor(repos, "resilientmq/core").full_name, "resilientmq/core");
+});
+
+test("discovers typed projects across organizations and preserves editorial overrides", () => {
+  const content = new Content({
+    org: { login: "didactika" },
+    groups: [{ id: "npm", projectTypes: ["npm-package"] }],
+    projects: [
+      {
+        repo: "prisma-entity", group: "npm", name: "Curated name",
+        desc: { en: "Curated description", es: "Descripción editorial" },
+      },
+      {
+        repo: "future-package", group: "npm", name: "Future package",
+        desc: { en: "Not public yet", es: "Todavía no es público" },
+      },
+    ],
+  });
+  const repos = [
+    repository("didactika/prisma-entity", {
+      description: "Repository description",
+      custom_properties: { "project-type": "npm-package" },
+    }),
+    repository("resilientmq/core", {
+      description: "Reliable RabbitMQ processing",
+      homepage: "https://www.npmjs.com/package/%40resilientmq%2Fcore",
+      custom_properties: { "project-type": "npm-package" },
+    }),
+    repository("didactika/service", {
+      description: "Not an npm package",
+      custom_properties: { "project-type": "service" },
+    }),
+  ];
+
+  const projects = content.projectsIn("npm", repos);
+
+  assert.deepEqual(projects.map((project) => project.repo), [
+    "prisma-entity", "resilientmq/core", "future-package",
+  ]);
+  assert.equal(projects[0].desc.en, "Curated description");
+  assert.equal(projects[1].name, "@resilientmq/core");
+  assert.equal(projects[1].npm, "@resilientmq/core");
+  assert.equal(projects[1].desc.es, "Reliable RabbitMQ processing");
+});
+
+test("an explicit project group prevents dynamic reassignment", () => {
+  const content = new Content({
+    org: { login: "resilientmq" },
+    groups: [
+      { id: "runtime", projectTypes: ["npm-package"] },
+      { id: "types" },
+    ],
+    projects: [{
+      repo: "types__core", group: "types", name: "Types",
+      desc: { en: "Types", es: "Tipos" },
+    }],
+  });
+  const repos = [repository("resilientmq/types__core", {
+    custom_properties: { "project-type": "npm-package" },
+  })];
+
+  assert.deepEqual(content.projectsIn("runtime", repos), []);
+  assert.equal(content.projectsIn("types", repos).length, 1);
 });
 
 test("renders a parent organization and a single founder without requiring a website", () => {

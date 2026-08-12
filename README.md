@@ -54,6 +54,14 @@ associated organisation use the owner-qualified form, for example
 `resilientmq/core`; repositories in the primary organisation may keep their
 short name.
 
+Project groups can declare `projectTypes`, containing values from the
+organization custom property `project-type`. Public repositories with one of
+those values are discovered automatically across the primary and associated
+organizations. A matching `projects` entry is an editorial override, not an
+allowlist; repositories without one use their GitHub description, homepage and
+name. An entry whose repository is not public remains an intentional “in
+development” preview.
+
 ### Environment variables
 
 | Variable | Effect |
