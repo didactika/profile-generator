@@ -62,6 +62,13 @@ allowlist; repositories without one use their GitHub description, homepage and
 name. An entry whose repository is not public remains an intentional “in
 development” preview.
 
+The top-level `sections` object controls the profile layout without code
+changes. `about`, `relationships`, `projects`, `metrics`, `contributors`,
+`contributing` and `founders` each accept `enabled: false`; omitted sections
+remain enabled for backwards compatibility. `sections.projects.showPending`
+controls whether declared projects without a public repository are shown, and
+individual project groups accept `enabled: false` as well.
+
 ### Environment variables
 
 | Variable | Effect |
