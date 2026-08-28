@@ -53,6 +53,7 @@ import { PATHS } from "./lib/config.mjs";
 import { log } from "./lib/log.mjs";
 import { Content } from "./lib/content.mjs";
 import { GitHubClient } from "./lib/sources/github.mjs";
+import { NpmRegistryClient } from "./lib/sources/npm.mjs";
 import { ProfileCollector } from "./lib/sources/collector.mjs";
 import { ProfileGenerator } from "./lib/generator.mjs";
 
@@ -66,6 +67,7 @@ async function gather(content) {
       log,
       userAgent: `${content.login}-profile-generator`,
     }),
+    npm: new NpmRegistryClient({ userAgent: `${content.login}-profile-generator` }),
     log,
   });
   return collector.collect(content.metricOrganizations);
