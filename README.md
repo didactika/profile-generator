@@ -74,6 +74,13 @@ allowlist; repositories without one use their GitHub description, homepage and
 name. An entry whose repository is not public remains an intentional “in
 development” preview.
 
+A group can also declare `discover.npm: true`. The generator reads the root
+`package.json` of every public repository, ignores private manifests, verifies
+the package against the public npm registry, and requires npm's repository
+metadata to point back to the same GitHub repository. Published packages are
+then included automatically; matching `projects` entries remain optional
+editorial and translation overrides.
+
 The top-level `sections` object controls the profile layout without code
 changes. `parent`, `about`, `projects`, `metrics`, `contributors`,
 `contributing`, `founders` and `memberOrganizations` each accept
@@ -96,6 +103,12 @@ public repository are shown, and individual project groups accept
 A run never renders zeros in place of real figures: if the GitHub API is
 rate-limited, it throws instead of writing a page with the budget it ran out
 of.
+
+Run the dependency-free test suite with:
+
+```bash
+node --test
+```
 
 ## Structure
 

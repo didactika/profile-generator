@@ -136,6 +136,41 @@ test("discovers typed projects across organizations and preserves editorial over
   assert.equal(projects[1].desc.es, "Reliable RabbitMQ processing");
 });
 
+test("discovers registry-verified npm packages without custom properties", () => {
+  const content = new Content({
+    org: { login: "resilientmq" },
+    groups: [{ id: "npm", discover: { npm: true } }],
+    projects: [{
+      repo: "prisma-connector",
+      group: "npm",
+      name: "Curated Prisma connector",
+      desc: { en: "Curated description", es: "Descripción editorial" },
+    }],
+  });
+  const repos = [
+    repository("resilientmq/prisma-connector", {
+      description: "Prisma persistence connector",
+      packages: {
+        npm: { name: "@resilientmq/prisma-connector", version: "0.1.1" },
+      },
+    }),
+    repository("resilientmq/core", {
+      description: "Reliable RabbitMQ processing",
+      packages: { npm: { name: "@resilientmq/core", version: "3.0.1" } },
+    }),
+    repository("resilientmq/unpublished", {
+      description: "Not published",
+    }),
+  ];
+
+  const projects = content.projectsIn("npm", repos);
+
+  assert.deepEqual(projects.map((project) => project.repo), ["prisma-connector", "core"]);
+  assert.equal(projects[0].name, "Curated Prisma connector");
+  assert.equal(projects[1].name, "@resilientmq/core");
+  assert.equal(projects[1].npm, "@resilientmq/core");
+});
+
 test("an explicit project group prevents dynamic reassignment", () => {
   const content = new Content({
     org: { login: "resilientmq" },
