@@ -32,7 +32,7 @@
  *   text            escaping, number formatting
  *   strings         the handful of words the SVGs draw in each language
  *   content         content.json wrapped
- *   sources/        GitHubClient, ProfileCollector
+ *   sources/        GitHubClient, NpmRegistryClient, MoodleDirectoryClient, ProfileCollector
  *   drawings/       Drawing and its subclasses — one class per picture
  *   pages/          Links, ReadmePage, ProjectPage, Badges
  *   output-directory  writes files and sweeps whatever it did not write
@@ -53,6 +53,7 @@ import { PATHS } from "./lib/config.mjs";
 import { log } from "./lib/log.mjs";
 import { Content } from "./lib/content.mjs";
 import { GitHubClient } from "./lib/sources/github.mjs";
+import { MoodleDirectoryClient } from "./lib/sources/moodle-directory.mjs";
 import { NpmRegistryClient } from "./lib/sources/npm.mjs";
 import { ProfileCollector } from "./lib/sources/collector.mjs";
 import { ProfileGenerator } from "./lib/generator.mjs";
@@ -68,6 +69,7 @@ async function gather(content) {
       userAgent: `${content.login}-profile-generator`,
     }),
     npm: new NpmRegistryClient({ userAgent: `${content.login}-profile-generator` }),
+    moodleDirectory: new MoodleDirectoryClient({ userAgent: `${content.login}-profile-generator` }),
     log,
   });
   return collector.collect(content.metricOrganizations);

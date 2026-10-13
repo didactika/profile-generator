@@ -97,8 +97,8 @@ data so a reader can find a project three ways:
 
 1. **An index**, one row per project, in alphabetical order of the name shown,
    with the facts that are compared. For Moodle plugins: what it does, the
-   range of Moodle versions, the lowest PHP and the latest release. For
-   packages: what it does, the latest version, the maintained lines and the
+   range of Moodle versions, the PHP its README states and the latest release.
+   For packages: what it does, the latest version, the maintained lines and the
    install command. Each name links to its card.
 2. **A compatibility matrix** (Moodle plugins), with the plugins down the side
    and every Moodle release across the top, so a reader looks along their own
@@ -112,27 +112,50 @@ A Moodle plugin is shown by its component (`local_demo`), which its
 (`moodle-local_demo`) gives. A repository whose description is only its name is
 shown without a description rather than repeating the name.
 
+#### Published and unpublished
+
+What people can find where they look for it is listed first, and what they
+cannot has a section of its own after it (*Unpublished plugins*, *Unpublished
+packages*), with the same index, matrix and cards:
+
+- a **plugin is published** when the Moodle plugins directory has its component
+  (`https://moodle.org/plugins/<component>` answers, rather than a 404). The
+  directory limits how fast it is asked, so the requests are spaced and a 429 is
+  waited out; a directory that keeps failing stops the run instead of turning
+  every plugin into an unpublished one;
+- a **package is published** when the npm registry has it and its metadata
+  points back to the repository.
+
+An unpublished project has no Moodle.org or npm link and no install command; it
+can be used from its repository. The profile shows both counts for each group.
+
+A repository whose `version.php` still says `PLUGINTYPE_PLUGINNAME` as its
+component is the unfilled template of the plugins, not a plugin, and is not
+listed at all.
+
 #### What a Moodle plugin supports
 
 It is read, never typed. For each plugin the collector reads `version.php` on
 the default branch and on every `MOODLE_XXX_STABLE` branch and takes
 `$plugin->supported = [lowest, highest]` of each. What the plugin supports is
 the union of those ranges, and **every Moodle release between the lowest and the
-highest is listed**, including the ones that have no branch of their own. The
-releases that exist, with the lowest PHP that runs each one, are in
-`lib/moodle-plugin.mjs` (`MOODLE_RELEASES`); add a row there when Moodle ships a
-new release. A plugin whose `version.php` cannot be read is listed without
-versions rather than with invented ones.
+highest is listed**, including the ones that have no branch of its own. The
+releases that exist are in `lib/moodle-plugin.mjs` (`MOODLE_RELEASES`); add an
+entry there when Moodle ships a new release. A plugin whose `version.php` cannot
+be read is listed without versions rather than with invented ones.
 
 #### Badges
 
-A Moodle plugin carries the three badges its own README has, in the same form:
+A Moodle plugin carries the badges its own README has, in the same form:
 
 - `License` as the static GPL v3 badge, linked to the `LICENSE` file of the
   repository (any other licence keeps the live badge of GitHub),
 - `Moodle` with the lowest supported version and a plus sign (`Moodle-4.5+`),
   linked to moodle.org,
-- `PHP` with the lowest PHP of the lowest supported Moodle release (`PHP-8.1+`),
+- `PHP`, **only when the README of the plugin has a PHP badge**, and with what
+  that badge says (`PHP-8.3+`). The profile repeats it rather than working it
+  out, so the plugin is the one that maintains it; a README without the badge
+  leaves the profile without a PHP requirement for that plugin,
 
 followed by the latest release. A package carries its language, the npm version
 and downloads, and its licence.
@@ -170,7 +193,8 @@ lib/
   strings.mjs                the handful of words the SVGs draw in each language
   content.mjs                 content.json wrapped
   moodle-plugin.mjs            version.php parsing and the Moodle releases that exist
-  sources/                     GitHubClient, ProfileCollector
+  publication.mjs                 whether a plugin or a package is published where people look for it
+  sources/                     GitHubClient, NpmRegistryClient, MoodleDirectoryClient, ProfileCollector
   drawings/                     Drawing and its subclasses — one class per picture
   pages/                         Links, ReadmePage, ProjectPage, Badges, listing (index and matrix)
   output-directory.mjs            writes files and sweeps whatever it did not write
