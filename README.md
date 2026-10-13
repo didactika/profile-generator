@@ -118,7 +118,7 @@ What people can find where they look for it is on one page, and what they
 cannot is on another (`moodle.md` and `moodle-unpublished.md`, and the same for
 the other groups and for each language), both with the same index, matrix and
 cards. The unpublished page exists only when something is unpublished. On the
-profile each group is a card of its own, and its two counts are the links to
+profile the groups are cards side by side, and their two counts are the links to
 the two pages:
 
 - a **plugin is published** when the Moodle plugins directory has its component.
