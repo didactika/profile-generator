@@ -55,6 +55,7 @@ test("aggregates repositories from associated organizations", async () => {
         return [{ week: 1, total: 10, days: [0, 2, 2, 2, 2, 2, 0] }];
       }
       if (path.endsWith("/releases?per_page=100")) return [{}];
+      if (path.endsWith("/releases/latest")) return null;
       throw new Error(`Unexpected GitHub request: ${path}`);
     },
   };

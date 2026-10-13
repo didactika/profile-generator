@@ -15,8 +15,9 @@ also the reference example of everything this tool expects to find.
 - Code by language, repositories by licence, commits by day of week, commits
   by repository — ranked horizontal bars, animated in on load.
 - Fifty-two weeks of commit activity, as a line that draws itself.
-- An EN/ES tab bar, and one detail page per project group with badges pulled
-  live from shields.io.
+- An EN/ES tab bar, and one listing page per project group, built to be scanned:
+  an index with one line for each project, a compatibility matrix for the
+  Moodle plugins, and a detail card for each with its badges.
 
 Every chart animates once when the image loads — bars grow, the activity
 line draws itself, tiles rise into place — and holds. It is CSS embedded in
@@ -89,6 +90,53 @@ changes. `parent`, `about`, `projects`, `metrics`, `contributors`,
 public repository are shown, and individual project groups accept
 `enabled: false` as well.
 
+### The project listings
+
+Each project group gets one page per language, made of three views of the same
+data so a reader can find a project three ways:
+
+1. **An index**, one row per project, in alphabetical order of the name shown,
+   with the facts that are compared. For Moodle plugins: what it does, the
+   range of Moodle versions, the lowest PHP and the latest release. For
+   packages: what it does, the latest version, the maintained lines and the
+   install command. Each name links to its card.
+2. **A compatibility matrix** (Moodle plugins), with the plugins down the side
+   and every Moodle release across the top, so a reader looks along their own
+   version.
+3. **A detail card** for each project: badges, the description, the supported
+   versions listed one by one, and its links (GitHub, Moodle.org or npm, the
+   documentation when the homepage is not one of those, and the releases).
+
+A Moodle plugin is shown by its component (`local_demo`), which its
+`version.php` states and, where it does not, its repository name
+(`moodle-local_demo`) gives. A repository whose description is only its name is
+shown without a description rather than repeating the name.
+
+#### What a Moodle plugin supports
+
+It is read, never typed. For each plugin the collector reads `version.php` on
+the default branch and on every `MOODLE_XXX_STABLE` branch and takes
+`$plugin->supported = [lowest, highest]` of each. What the plugin supports is
+the union of those ranges, and **every Moodle release between the lowest and the
+highest is listed**, including the ones that have no branch of their own. The
+releases that exist, with the lowest PHP that runs each one, are in
+`lib/moodle-plugin.mjs` (`MOODLE_RELEASES`); add a row there when Moodle ships a
+new release. A plugin whose `version.php` cannot be read is listed without
+versions rather than with invented ones.
+
+#### Badges
+
+A Moodle plugin carries the three badges its own README has, in the same form:
+
+- `License` as the static GPL v3 badge, linked to the `LICENSE` file of the
+  repository (any other licence keeps the live badge of GitHub),
+- `Moodle` with the lowest supported version and a plus sign (`Moodle-4.5+`),
+  linked to moodle.org,
+- `PHP` with the lowest PHP of the lowest supported Moodle release (`PHP-8.1+`),
+
+followed by the latest release. A package carries its language, the npm version
+and downloads, and its licence.
+
 ### Environment variables
 
 | Variable | Effect |
@@ -121,9 +169,10 @@ lib/
   text.mjs                  escaping, number formatting
   strings.mjs                the handful of words the SVGs draw in each language
   content.mjs                 content.json wrapped
+  moodle-plugin.mjs            version.php parsing and the Moodle releases that exist
   sources/                     GitHubClient, ProfileCollector
   drawings/                     Drawing and its subclasses — one class per picture
-  pages/                         Links, ReadmePage, ProjectPage, Badges
+  pages/                         Links, ReadmePage, ProjectPage, Badges, listing (index and matrix)
   output-directory.mjs            writes files and sweeps whatever it did not write
   generator.mjs                    the order of operations, and nothing else
 ```
