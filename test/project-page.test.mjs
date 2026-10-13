@@ -50,14 +50,17 @@ const repo = (name, overrides = {}) => ({
 /** A plugin that the Moodle plugins directory has. */
 const listed = (component) => ({ component, url: `https://moodle.org/plugins/${component}` });
 
-const page = (groupId, repos, locale = "en") => new ProjectPage({
+const pageObject = (groupId, repos, locale = "en", view = "published") => new ProjectPage({
   content,
   data: { repos },
   links: new Links("didactika", "main"),
   group: content.groups.find((group) => group.id === groupId),
   locale,
   stamp: "2026-10-13",
-}).render();
+  view,
+});
+const page = (groupId, repos, locale = "en", view = "published") => pageObject(groupId, repos, locale, view).render();
+const unpublishedPage = (groupId, repos, locale = "en") => page(groupId, repos, locale, "unpublished");
 
 test("a plugin listing has the index, the matrix and a card for each published plugin", () => {
   const html = page("moodle", [
@@ -100,46 +103,61 @@ test("a card has no arrow back to the top of the page", () => {
   assert.doesNotMatch(html, /href="#">/);
 });
 
-test("the plugins that are not in the Moodle directory have a section of their own after the published ones", () => {
-  const html = page("moodle", [
+test("the plugins that are not in the Moodle directory are on a page of their own, linked from the published one", () => {
+  const repos = [
     repo("moodle-local_listed", { moodleDirectory: listed("local_listed"), moodleLines: [{ branch: "main", supported: [503, 503] }] }),
     repo("moodle-local_unlisted", { moodleLines: [{ branch: "main", supported: [405, 503] }] }),
-  ]);
+  ];
+  const published = page("moodle", repos);
+  const unpublished = unpublishedPage("moodle", repos);
 
-  assert.match(html, /<p><b>2 plugins<\/b> · Moodle <code>4\.5<\/code> – <code>5\.3<\/code> · <b>1<\/b> unpublished<\/p>/);
-  const published = html.indexOf("## Find a plugin");
-  const unpublished = html.indexOf("## Unpublished plugins");
-  assert.ok(published > -1 && unpublished > published);
-  assert.match(html, /Not in the Moodle plugins directory yet\./);
-  // Each plugin is in the section that is its own, and only there.
-  assert.ok(html.indexOf("### local_listed") < unpublished);
-  assert.ok(html.indexOf("### local_unlisted") > unpublished);
-  assert.equal(html.match(/### local_unlisted/g).length, 1);
-  // An unpublished plugin has no page in the directory to link to.
-  assert.doesNotMatch(html.slice(unpublished), /Moodle\.org<\/a>/);
-  assert.doesNotMatch(html, /---\n\n---/);
+  assert.equal(pageObject("moodle", repos).filename, "moodle.md");
+  assert.equal(pageObject("moodle", repos, "es", "unpublished").filename, "moodle-unpublished.es.md");
+  // The published page has only what is published, and the count of the rest is the way to the other page.
+  assert.match(published, /### local_listed/);
+  assert.doesNotMatch(published, /local_unlisted/);
+  assert.match(published, /<a href="https:\/\/github\.com\/didactika\/\.github\/blob\/main\/profile\/projects\/moodle-unpublished\.md"><b>1<\/b> unpublished<\/a>/);
+  // The other page has the same three views for what is not, and a way back.
+  assert.match(unpublished, /# Moodle plugins · Unpublished plugins/);
+  assert.match(unpublished, /Not in the Moodle plugins directory yet\./);
+  assert.match(unpublished, /## Find a plugin/);
+  assert.match(unpublished, /## What runs on my Moodle\?/);
+  assert.match(unpublished, /### local_unlisted/);
+  assert.doesNotMatch(unpublished, /local_listed/);
+  assert.doesNotMatch(unpublished, /Moodle\.org<\/a>/);
+  assert.match(unpublished, /projects\/moodle\.md">← Moodle plugins<\/a>/);
+  // The language switch stays on the same view.
+  assert.match(unpublished, /moodle-unpublished\.es\.md/);
 });
 
-test("a listing with nothing published starts straight on the unpublished plugins", () => {
-  const html = page("moodle", [repo("moodle-local_unlisted", { moodleLines: [{ branch: "main", supported: [503, 503] }] })]);
+test("there is no unpublished page when everything is published", () => {
+  const repos = [repo("moodle-local_listed", { moodleDirectory: listed("local_listed"), moodleLines: [{ branch: "main", supported: [503, 503] }] })];
 
-  assert.doesNotMatch(html, /## Find a plugin/);
-  assert.match(html, /## Unpublished plugins/);
-  assert.match(html, /<p><b>1 plugin<\/b> · Moodle <code>5\.3<\/code> · <b>1<\/b> unpublished<\/p>/);
-  assert.doesNotMatch(html, /---\n\n---/);
+  assert.equal(pageObject("moodle", repos, "en", "unpublished").hasContent, false);
+  assert.equal(pageObject("moodle", repos).hasContent, true);
+  assert.doesNotMatch(page("moodle", repos), /unpublished/);
 });
 
-test("the Spanish page is the same page in Spanish", () => {
-  const html = page("moodle", [
+test("a group with nothing published still has its page, and the unpublished one holds the projects", () => {
+  const repos = [repo("moodle-local_unlisted", { moodleLines: [{ branch: "main", supported: [503, 503] }] })];
+
+  assert.doesNotMatch(page("moodle", repos), /### local_unlisted/);
+  assert.match(page("moodle", repos), /<b>1<\/b> unpublished/);
+  assert.match(unpublishedPage("moodle", repos), /<p><b>1 plugin<\/b> · Moodle <code>5\.3<\/code><\/p>/);
+});
+
+test("the Spanish pages are the same pages in Spanish", () => {
+  const repos = [
     repo("moodle-local_demo", { moodleDirectory: listed("local_demo"), moodleLines: [{ branch: "main", supported: [503, 503] }] }),
     repo("moodle-local_other", { moodleLines: [{ branch: "main", supported: [503, 503] }] }),
-  ], "es");
+  ];
+  const html = page("moodle", repos, "es");
 
   assert.match(html, /## Encuentra un plugin/);
   assert.match(html, /## ¿Qué funciona en mi Moodle\?/);
-  assert.match(html, /## Plugins sin publicar/);
   assert.match(html, /<b>1<\/b> sin publicar/);
   assert.match(html, /<b>Moodle compatible:<\/b> <code>5\.3<\/code>/);
+  assert.match(page("moodle", repos, "es", "unpublished"), /# Plugins de Moodle · Plugins sin publicar/);
 });
 
 test("the PHP of a plugin is what its README says, and a README that says nothing leaves it out", () => {
@@ -166,7 +184,7 @@ test("a repository that still is the template of the plugins is not listed", () 
 });
 
 test("a plugin whose version.php could not be read is listed without invented versions", () => {
-  const html = page("moodle", [repo("moodle-local_unknown")]);
+  const html = unpublishedPage("moodle", [repo("moodle-local_unknown")]);
 
   assert.match(html, /\| — \| — \| — \|/);
   assert.doesNotMatch(html, /Supported Moodle/);
@@ -175,7 +193,7 @@ test("a plugin whose version.php could not be read is listed without invented ve
 });
 
 test("a repository described only by its own name has no description", () => {
-  const html = page("moodle", [repo("moodle-local_bare", { description: "moodle-local_bare" })]);
+  const html = unpublishedPage("moodle", [repo("moodle-local_bare", { description: "moodle-local_bare" })]);
 
   assert.match(html, /<b>local_bare<\/b><\/a> \| — \|/);
 });
@@ -198,8 +216,8 @@ test("a package listing has the index with the install command and no matrix", (
   assert.doesNotMatch(html, /Unpublished/);
 });
 
-test("the packages that are not on npm have a section of their own, without an install command or an npm link", () => {
-  const html = page("npm", [
+test("the packages that are not on npm are on a page of their own, without an install command or an npm link", () => {
+  const repos = [
     repo("prisma-entity", {
       custom_properties: { "project-type": "npm-package" },
       packages: { npm: { name: "@didactika/prisma-entity", version: "3.1.3" } },
@@ -211,16 +229,16 @@ test("the packages that are not on npm have a section of their own, without an i
       homepage: "https://www.npmjs.com/package/@didactika/moodle-client",
       license: { spdx_id: "MIT" },
     }),
-  ]);
+  ];
+  const published = page("npm", repos);
+  const unpublished = unpublishedPage("npm", repos);
 
-  assert.match(html, /<p><b>2 packages<\/b> · <b>1<\/b> unpublished<\/p>/);
-  const unpublished = html.indexOf("## Unpublished packages");
-  assert.ok(unpublished > html.indexOf("## Find a package"));
-  assert.match(html, /Not on npm yet\./);
-  const section = html.slice(unpublished);
-  assert.match(section, /### @didactika\/moodle-client/);
-  assert.doesNotMatch(section, /npm install/);
-  assert.doesNotMatch(section, /npmjs\.com/);
-  assert.doesNotMatch(section, /npm\/v\//);
-  assert.doesNotMatch(html.slice(0, unpublished), /moodle-client/);
+  assert.match(published, /<p><b>2 packages<\/b> · <a [^>]*npm-unpublished\.md"><b>1<\/b> unpublished<\/a><\/p>/);
+  assert.doesNotMatch(published, /moodle-client/);
+  assert.match(unpublished, /# NPM packages · Unpublished packages/);
+  assert.match(unpublished, /Not on npm yet\./);
+  assert.match(unpublished, /### @didactika\/moodle-client/);
+  assert.doesNotMatch(unpublished, /npm install/);
+  assert.doesNotMatch(unpublished, /npmjs\.com/);
+  assert.doesNotMatch(unpublished, /npm\/v\//);
 });
