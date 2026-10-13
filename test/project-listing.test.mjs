@@ -15,11 +15,18 @@ const repo = (overrides = {}) => ({
 
 test("a plugin gets the license, Moodle and PHP badges that its README has", () => {
   const support = moodleSupport([{ supported: [405, 503] }]);
-  const html = Badges.for({}, repo(), {}, { kind: "moodle", support });
+  const html = Badges.for({}, repo(), {}, { kind: "moodle", support, php: "8.1+" });
 
   assert.match(html, /<a href="https:\/\/github\.com\/didactika\/moodle-local_demo\/blob\/main\/LICENSE"><img alt="License GPL v3" src="https:\/\/img\.shields\.io\/badge\/License-GPL_v3-blue\?style=flat-square"><\/a>/);
   assert.match(html, /<a href="https:\/\/moodle\.org"><img alt="Moodle 4\.5\+" src="https:\/\/img\.shields\.io\/badge\/Moodle-4\.5\+-f98012\?style=flat-square&logo=moodle&logoColor=white"><\/a>/);
   assert.match(html, /<a href="https:\/\/www\.php\.net"><img alt="PHP 8\.1\+" src="https:\/\/img\.shields\.io\/badge\/PHP-8\.1\+-777bb4\?style=flat-square&logo=php&logoColor=white"><\/a>/);
+});
+
+test("a plugin whose README has no PHP badge gets none, however old its Moodle range", () => {
+  const html = Badges.for({}, repo(), {}, { kind: "moodle", support: moodleSupport([{ supported: [400, 502] }]), php: null });
+
+  assert.match(html, /Moodle-4\.0\+/);
+  assert.doesNotMatch(html, /PHP-/);
 });
 
 test("a plugin whose version.php could not be read has no Moodle or PHP badge, and does not invent one", () => {
@@ -64,6 +71,7 @@ test("the index has a row for each plugin with its Moodle range, PHP and latest 
     anchor: "local_demo",
     description: "Does a thing | with a pipe.",
     support: moodleSupport([{ supported: [400, 502] }]),
+    php: "7.4+",
     latest: { tag: "v1.2.0", url: "https://example.test/r" },
     lines: [],
     install: null,

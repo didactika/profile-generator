@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { MOODLE_RELEASES, moodleLabel, moodleSupport, parseVersionFile, releaseColumns } from "../lib/moodle-plugin.mjs";
+import {
+  MOODLE_RELEASES, isUnfilledTemplate, moodleLabel, moodleSupport, parseVersionFile, phpBadgeOf, pluginComponent, releaseColumns,
+} from "../lib/moodle-plugin.mjs";
 
 test("reads what a plugin says about itself in version.php", () => {
   const parsed = parseVersionFile(`<?php
@@ -41,18 +43,35 @@ test("lines that leave a gap are still listed from the lowest to the highest", (
   assert.deepEqual(support.labels, ["4.5", "5.0", "5.1", "5.2", "5.3"]);
 });
 
-test("the PHP version is the lowest one that runs the lowest supported Moodle", () => {
-  assert.equal(moodleSupport([{ supported: [400, 502] }]).php, "7.4");
-  assert.equal(moodleSupport([{ supported: [503, 503] }]).php, MOODLE_RELEASES[503]);
-  assert.equal(moodleSupport([{ supported: [405, 503] }]).php, "8.1");
+test("the support says nothing about PHP, which the README of each plugin states", () => {
+  assert.equal("php" in moodleSupport([{ supported: [400, 502] }]), false);
+  assert.ok(MOODLE_RELEASES.includes(503));
 });
 
-test("a release newer than the table is still listed, without a PHP version", () => {
+test("a release newer than the table is still listed", () => {
   const support = moodleSupport([{ supported: [503, 600] }]);
 
   assert.deepEqual(support.labels, ["5.3", "6.0"]);
-  assert.equal(support.php, MOODLE_RELEASES[503]);
-  assert.equal(moodleSupport([{ supported: [600, 600] }]).php, null);
+  assert.deepEqual(moodleSupport([{ supported: [600, 600] }]).labels, ["6.0"]);
+});
+
+test("the PHP badge of a README is read as it is written, and a README without one gives none", () => {
+  assert.equal(phpBadgeOf("[![PHP](https://img.shields.io/badge/PHP-8.3+-777bb4?style=flat-square)](https://php.net)"), "8.3+");
+  assert.equal(phpBadgeOf("![PHP](https://img.shields.io/badge/PHP-8.1%2B-777bb4)"), "8.1+");
+  assert.equal(phpBadgeOf("A README that never says it."), null);
+  assert.equal(phpBadgeOf(undefined), null);
+});
+
+test("the unfilled template of the plugins is recognised by its component", () => {
+  assert.equal(isUnfilledTemplate({ moodleLines: [{ component: "PLUGINTYPE_PLUGINNAME" }] }), true);
+  assert.equal(isUnfilledTemplate({ moodleLines: [{ component: "local_demo" }] }), false);
+  assert.equal(isUnfilledTemplate({}), false);
+});
+
+test("a plugin is known by the component of its version.php or, failing that, by its repository", () => {
+  assert.equal(pluginComponent({ name: "moodle-local_demo", moodleLines: [{ component: "local_other" }] }), "local_other");
+  assert.equal(pluginComponent({ name: "moodle-local_demo", moodleLines: [{ component: null }] }), "local_demo");
+  assert.equal(pluginComponent({ name: "something-else" }), null);
 });
 
 test("lines that declare nothing add nothing", () => {
