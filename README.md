@@ -118,11 +118,12 @@ What people can find where they look for it is listed first, and what they
 cannot has a section of its own after it (*Unpublished plugins*, *Unpublished
 packages*), with the same index, matrix and cards:
 
-- a **plugin is published** when the Moodle plugins directory has its component
-  (`https://moodle.org/plugins/<component>` answers, rather than a 404). The
-  directory limits how fast it is asked, so the requests are spaced and a 429 is
-  waited out; a directory that keeps failing stops the run instead of turning
-  every plugin into an unpublished one;
+- a **plugin is published** when the Moodle plugins directory has its component.
+  The directory is read once per run from the list Moodle publishes for programs
+  (`download.moodle.org/api/1.3/pluglist.php`), not page by page: the pages of
+  moodle.org answer a rapid succession of requests, or one from the servers of
+  GitHub Actions, with a 429 or a 403. A directory that cannot be read stops the
+  run instead of turning every plugin into an unpublished one;
 - a **package is published** when the npm registry has it and its metadata
   points back to the repository.
 
