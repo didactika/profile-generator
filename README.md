@@ -114,9 +114,12 @@ shown without a description rather than repeating the name.
 
 #### Published and unpublished
 
-What people can find where they look for it is listed first, and what they
-cannot has a section of its own after it (*Unpublished plugins*, *Unpublished
-packages*), with the same index, matrix and cards:
+What people can find where they look for it is on one page, and what they
+cannot is on another (`moodle.md` and `moodle-unpublished.md`, and the same for
+the other groups and for each language), both with the same index, matrix and
+cards. The unpublished page exists only when something is unpublished. On the
+profile each group is a card of its own, and its two counts are the links to
+the two pages:
 
 - a **plugin is published** when the Moodle plugins directory has its component.
   The directory is read once per run from the list Moodle publishes for programs
@@ -128,7 +131,7 @@ packages*), with the same index, matrix and cards:
   points back to the repository.
 
 An unpublished project has no Moodle.org or npm link and no install command; it
-can be used from its repository. The profile shows both counts for each group.
+can be used from its repository. The published page links to the unpublished one from its count.
 
 A repository whose `version.php` still says `PLUGINTYPE_PLUGINNAME` as its
 component is the unfilled template of the plugins, not a plugin, and is not

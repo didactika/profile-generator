@@ -344,7 +344,7 @@ test("renders only sections enabled by profile data", () => {
   assert.doesNotMatch(output, /^## /m);
 });
 
-test("renders project groups side by side and lets an unpaired group span the row", () => {
+test("renders each project group as a card of its own, one under the other, with a link in each count", () => {
   const localized = (value) => ({ en: value, es: value });
   const content = new Content({
     org: { login: "didactika", name: "Didactika", tagline: localized("Tagline") },
@@ -368,14 +368,16 @@ test("renders project groups side by side and lets an unpaired group span the ro
   });
   const links = {
     profileEn: "https://github.com/didactika", profileEs: "https://example.com/es",
-    tabBar: () => "", projectPage: (id) => `https://example.com/${id}`,
+    tabBar: () => "", projectPage: (id, _locale, view = "published") => `https://example.com/${id}/${view}`,
   };
   const output = new ReadmePage({
     content, data: { repos: [], contributors: [] }, links, locale: "en", stamp: "2026-08-12",
   }).render();
 
-  assert.equal((output.match(/<td width="50%"/g) || []).length, 2);
-  assert.equal((output.match(/<td width="100%"/g) || []).length, 1);
-  assert.match(output, /<tr>\s*<td width="50%"[\s\S]*<td width="50%"[\s\S]*<\/tr>/);
+  // A table for each card, so there is a gap between them; one cell each.
+  assert.equal((output.match(/<table>/g) || []).length, 3);
+  assert.equal((output.match(/<td /g) || []).length, 3);
+  assert.doesNotMatch(output, /Browse/);
+  assert.match(output, /<a href="https:\/\/example\.com\/npm\/published"><b>0<\/b> published<\/a>/);
   assert.doesNotMatch(output, /in development/i);
 });
