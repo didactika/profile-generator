@@ -124,6 +124,7 @@ test("collector keeps only published packages owned by their repositories", asyn
       if (path.endsWith("/contributors?per_page=100")) return [];
       if (path.endsWith("/stats/commit_activity")) return [];
       if (path.endsWith("/releases?per_page=100")) return [];
+      if (path.endsWith("/releases/latest")) return null;
       throw new Error(`Unexpected GitHub request: ${path}`);
     },
   };
